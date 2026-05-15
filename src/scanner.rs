@@ -1,9 +1,62 @@
 use std::fs;
 use std::path::Path;
 
+fn fuzzy_score(query: &str, candidate: &str) -> Option<u32> {
+    if query.is_empty() {
+        return Some(0);
+    }
+
+    let query_chars: Vec<char> = query.chars().collect();
+    let mut q_idx = 0;
+    let mut score: u32 = 0;
+    let mut prev_match_idx: i32 = -2;
+    let mut consecutive_bonus_given = false;
+
+    for (c_idx, c) in candidate.chars().enumerate() {
+        if q_idx >= query_chars.len() {
+            break;
+        }
+
+        let query_char = query_chars[q_idx];
+        if c.to_lowercase().eq(query_char.to_lowercase()) {
+            score += 10;
+
+            if c_idx as i32 == prev_match_idx + 1 {
+                score += 15;
+                consecutive_bonus_given = true;
+            }
+            if c_idx == 0
+                || candidate.as_bytes()[c_idx - 1] == b'_'
+                || candidate.as_bytes()[c_idx - 1] == b'-'
+                || candidate.as_bytes()[c_idx - 1] == b'.'
+                || (c_idx > 0
+                    && candidate.as_bytes()[c_idx - 1].is_ascii_lowercase()
+                    && c.is_uppercase())
+            {
+                score += 20;
+            }
+
+            prev_match_idx = c_idx as i32;
+            q_idx += 1;
+        } else {
+            if !consecutive_bonus_given {
+                score = score.saturating_sub(1);
+            }
+            consecutive_bonus_given = false;
+        }
+    }
+
+    if q_idx == query_chars.len() {
+        Some(score)
+    } else {
+        None
+    }
+}
 pub fn find_project(base_dir: &str, alias: &str) -> Option<String> {
     let dir_iter = fs::read_dir(base_dir).ok()?;
-    let lower_alias = alias.to_lowercase();
+
+    let mut best_score = 0;
+    let mut best_path: Option<String> = None;
 
     for entry in dir_iter {
         let entry = entry.ok()?;
@@ -14,18 +67,18 @@ pub fn find_project(base_dir: &str, alias: &str) -> Option<String> {
 
         let name = entry.file_name();
         let name_str = name.to_str()?;
-
         if name_str.starts_with('.') {
             continue;
         }
-
-        if name_str.to_lowercase().contains(&lower_alias) {
-            let full_path = Path::new(base_dir).join(name_str);
-            return Some(full_path.to_string_lossy().into_owned());
+        if let Some(score) = fuzzy_score(alias, name_str) {
+            if score > best_score {
+                best_score = score;
+                let full_path = Path::new(base_dir).join(name_str);
+                best_path = Some(full_path.to_string_lossy().into_owned());
+            }
         }
     }
-
-    None
+    best_path
 }
 
 #[cfg(test)]
@@ -81,6 +134,24 @@ mod tests {
     fn test_skip_hidden() {
         let base = setup_test_dirs(&[".hidden_project", "visible"]);
         let result = find_project(&base, "hidden");
+        assert!(result.is_none());
+        fs::remove_dir_all(base).unwrap();
+    }
+    #[test]
+    fn test_fuzzy_ordering() {
+        let base = setup_test_dirs(&["dotfiles-bspwm", "bspwm-dotfiles", "database-migration"]);
+        let result = find_project(&base, "dbm");
+        assert!(result.is_some());
+        let path = result.unwrap();
+        assert!(path.contains("dotfiles-bspwm") || path.contains("database-migration"));
+        assert!(!path.contains("bspwm-dotfiles"));
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn test_fuzzy_no_match_wrong_order() {
+        let base = setup_test_dirs(&["abcdef"]);
+        let result = find_project(&base, "fa");
         assert!(result.is_none());
         fs::remove_dir_all(base).unwrap();
     }
