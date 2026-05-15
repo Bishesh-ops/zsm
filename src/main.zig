@@ -1,10 +1,5 @@
 const std = @import("std");
 
-const ProjectMap = struct {
-    alias: []const u8,
-    path: []const u8,
-};
-
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
 
@@ -15,24 +10,30 @@ pub fn main(init: std.process.Init) !void {
 
     const args_iter = try init.minimal.args.toSlice(init.arena.allocator());
     if (args_iter.len < 2) {
-        try stderr.print("Error: No Project Alias provided. \nUsage: zsm-bin <alias>\n", .{});
+        try stderr.print("Error: No search alias provided. \nUsage: zsm <alias>\n", .{});
         std.process.exit(1);
     }
-
     const target_alias = args_iter[1];
 
-    const projects = [_]ProjectMap{
-        .{ .alias = "roguelike", .path = "/home/bishesh/dev/entropy-descent" },
-        .{ .alias = "whale", .path = "/home/bishesh/dev/WhaleWatchers" },
-        .{ .alias = "config", .path = "/home/bishesh/.config/nvim" },
-    };
+    const base_directory_path = "/home/bisheshshrestha/Dev";
 
-    for (projects) |project| {
-        if (std.mem.eql(u8, project.alias, target_alias)) {
-            try stdout.print("{s}", .{project.path});
-            return;
+    var dir = std.Io.Dir.openDirAbsolute(io, base_directory_path, .{ .iterate = true }) catch |err| {
+        try stderr.print("Error could not open Dev directory. {any}\n", .{err});
+        std.process.exit(1);
+    };
+    defer dir.close(io);
+
+    var walker = dir.iterate();
+
+    while (try walker.next(io)) |entry| {
+        if (entry.kind == .directory) {
+            if (std.ascii.indexOfIgnoreCase(entry.name, target_alias) != null) {
+                try stdout.print("{s}/{s}", .{ base_directory_path, entry.name });
+                return;
+            }
         }
     }
-    try stderr.print("Error: Project alias '{s}' not found in registry.\n", .{target_alias});
+
+    try stderr.print("Error: No project matching '{s}' found in '{s}'.\n", .{ target_alias, base_directory_path });
     std.process.exit(1);
 }
