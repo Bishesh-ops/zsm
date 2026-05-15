@@ -60,14 +60,24 @@ pub fn find_project(base_dir: &str, alias: &str, db: &FrecentDB, now: u64) -> Op
     let mut best_path: Option<String> = None;
 
     for entry in dir_iter {
-        let entry = entry.ok()?;
-        let file_type = entry.file_type().ok()?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
         if !file_type.is_dir() {
             continue;
         }
 
         let name = entry.file_name();
-        let name_str = name.to_str()?;
+        let name_str = match name.to_str() {
+            Some(s) => s,
+            None => continue,
+        };
         if name_str.starts_with('.') {
             continue;
         }
@@ -75,6 +85,7 @@ pub fn find_project(base_dir: &str, alias: &str, db: &FrecentDB, now: u64) -> Op
         if let Some(fuzzy) = fuzzy_score(alias, name_str) {
             let full_path = Path::new(base_dir).join(name_str);
             let full_path_str = full_path.to_string_lossy().into_owned();
+
             let frecency = db.frecency_score(&full_path_str, now);
             let total = fuzzy as i64 + frecency as i64;
 
@@ -84,6 +95,7 @@ pub fn find_project(base_dir: &str, alias: &str, db: &FrecentDB, now: u64) -> Op
             }
         }
     }
+
     best_path
 }
 
@@ -111,7 +123,6 @@ mod tests {
         }
         temp.to_string_lossy().into_owned()
     }
-
     fn now_secs() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -122,7 +133,7 @@ mod tests {
     #[test]
     fn test_find_exact_match() {
         let base = setup_test_dirs(&["my_project", "other_project"]);
-        let db = FrecentDB::new(); // empty DB
+        let db = FrecentDB::load(); // empty DB
         let now = now_secs();
         let result = find_project(&base, "my_project", &db, now);
         assert!(result.is_some());
@@ -133,7 +144,7 @@ mod tests {
     #[test]
     fn test_case_insensitive_match() {
         let base = setup_test_dirs(&["MyProject"]);
-        let db = FrecentDB::new();
+        let db = FrecentDB::load();
         let now = now_secs();
         let result = find_project(&base, "myproject", &db, now);
         assert!(result.is_some());
@@ -143,7 +154,7 @@ mod tests {
     #[test]
     fn test_no_match() {
         let base = setup_test_dirs(&["project"]);
-        let db = FrecentDB::new();
+        let db = FrecentDB::load();
         let now = now_secs();
         let result = find_project(&base, "nonexistent", &db, now);
         assert!(result.is_none());
@@ -153,17 +164,17 @@ mod tests {
     #[test]
     fn test_skip_hidden() {
         let base = setup_test_dirs(&[".hidden_project", "visible"]);
-        let db = FrecentDB::new();
+        let db = FrecentDB::load();
         let now = now_secs();
         let result = find_project(&base, "hidden", &db, now);
-        assert!(result.is_none()); // .hidden_project ignored
+        assert!(result.is_none());
         fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
     fn test_fuzzy_ordering() {
         let base = setup_test_dirs(&["dotfiles-bspwm", "bspwm-dotfiles", "database-migration"]);
-        let db = FrecentDB::new();
+        let db = FrecentDB::load();
         let now = now_secs();
         let result = find_project(&base, "dbm", &db, now);
         assert!(result.is_some());
@@ -176,7 +187,7 @@ mod tests {
     #[test]
     fn test_fuzzy_no_match_wrong_order() {
         let base = setup_test_dirs(&["abcdef"]);
-        let db = FrecentDB::new();
+        let db = FrecentDB::load();
         let now = now_secs();
         let result = find_project(&base, "fa", &db, now);
         assert!(result.is_none());

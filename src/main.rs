@@ -14,7 +14,6 @@ fn main() {
     }
     let target_alias = &args[1];
 
-    // Validation
     if target_alias.is_empty()
         || target_alias.starts_with('.')
         || target_alias.starts_with('/')
@@ -28,7 +27,7 @@ fn main() {
 
     let base = env::var("ZSM_BASE").unwrap_or_else(|_| "/home/bisheshshrestha/Dev".to_string());
 
-    let mut db = frecent::FrecentDB::new();
+    let mut db = frecent::FrecentDB::load();
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -37,6 +36,7 @@ fn main() {
     match scanner::find_project(&base, target_alias, &db, now) {
         Some(path) => {
             db.record_visit(&path, now);
+            db.save();
             println!("{}", path);
         }
         None => {

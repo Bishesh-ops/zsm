@@ -11,9 +11,7 @@ where
 impl<K: Eq + Hash, V> HashMap<K, V> {
     pub fn new(capacity: usize) -> Self {
         let mut buckets = Vec::with_capacity(capacity);
-        for _ in 0..capacity {
-            buckets.push(None);
-        }
+        buckets.resize_with(capacity, || None);
         HashMap { buckets, len: 0 }
     }
 
@@ -74,8 +72,8 @@ impl<K: Eq + Hash, V> HashMap<K, V> {
         loop {
             if let Some(ref mut slot) = self.buckets[idx] {
                 if probe_dist > slot.1 {
-                    std::mem::swap(&mut new_entry.0, &mut slot.0.0);
-                    std::mem::swap(&mut new_entry.1, &mut slot.0.1);
+                    std::mem::swap(&mut new_entry.0, &mut slot.0 .0);
+                    std::mem::swap(&mut new_entry.1, &mut slot.0 .1);
                     std::mem::swap(&mut probe_dist, &mut slot.1);
                 }
             } else {
