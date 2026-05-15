@@ -28,7 +28,8 @@ It works like `zoxide` combined with `fzf`, but **built entirely from scratch in
 ```bash
 git clone https://github.com/Bishesh-ops/zsm.git
 cd zsm
-cargo build --release```
+cargo build --release
+```
 
 ### Set up the shell function
 Add this to your ~/.zshrc or ~/.bashrc:
@@ -40,24 +41,28 @@ zsm() {
     if [ $? -eq 0 ] && [ -n "$target_dir" ]; then
         cd "$target_dir" && nvim .
     fi
-}```
+}
+```
 
  Then reload your shell:
 
 ```bash
-source ~/.zshrc   # or ~/.bashrc```
+source ~/.zshrc   # or ~/.bashrc
+```
 ## Configuration
 By default, zsm scans ~/Dev (or whatever you set in the fallback).
 You can override this by setting the environment variable `ZSM_BASE`:
 
 ```bash
-export ZSM_BASE="$HOME/Projects"```
+export ZSM_BASE="$HOME/Projects"
+```
 
 ## Usage
 ```bash
 zsm myproject          # jumps to the best matching project
 zsm dbm                # fuzzy matches 'dotfiles-bspwm'
-zsm nonexistent        # error message, no jump```
+zsm nonexistent        # error message, no jump
+```
 
 After a few uses, zsm learns. Running zsm proj twice will make it prefer the previously visited match over a new one with a similar fuzzy score.
 
@@ -69,7 +74,8 @@ src/
   main.rs         – CLI entry point, argument validation, environment setup.
   scanner.rs      – directory traversal & fuzzy matching algorithm.
   frecent.rs      – frecency database (load/save/score) backed by custom hashmap.
-  myhashmap.rs    – custom Robin‑Hood hashmap (open addressing, linear probing).```
+  myhashmap.rs    – custom Robin‑Hood hashmap (open addressing, linear probing).
+```
 
 No external runtime dependencies – just serde and dirs for persistence and platform paths.
 
