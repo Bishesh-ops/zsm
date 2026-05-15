@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::hashmap::HashMap; // <--- new
 
 pub struct FrecentEntry {
     pub frequency: u32,
@@ -12,22 +12,27 @@ pub struct FrecentDB {
 impl FrecentDB {
     pub fn new() -> Self {
         FrecentDB {
-            entries: HashMap::new(),
+            entries: HashMap::new(8),
         }
     }
 
     pub fn record_visit(&mut self, path: &str, now_unix_secs: u64) {
-        let entry = self.entries.entry(path.to_owned()).or_insert(FrecentEntry {
-            frequency: 0,
-            last_visited: now_unix_secs,
-        });
-
-        entry.frequency += 1;
-        entry.last_visited = now_unix_secs;
+        if let Some(entry) = self.entries.get_mut(&path.to_owned()) {
+            entry.frequency += 1;
+            entry.last_visited = now_unix_secs;
+        } else {
+            self.entries.insert(
+                path.to_owned(),
+                FrecentEntry {
+                    frequency: 1,
+                    last_visited: now_unix_secs,
+                },
+            );
+        }
     }
 
     pub fn frecency_score(&self, path: &str, now_unix_secs: u64) -> u32 {
-        if let Some(entry) = self.entries.get(path) {
+        if let Some(entry) = self.entries.get(&path.to_owned()) {
             let age_secs = now_unix_secs.saturating_sub(entry.last_visited);
             let age_hours = age_secs / 3600;
             let recency_bonus = 100 / (age_hours + 1);

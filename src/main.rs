@@ -3,6 +3,7 @@ use std::process;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod frecent;
+mod hashmap;
 mod scanner;
 
 fn main() {

@@ -90,20 +90,21 @@ pub fn find_project(base_dir: &str, alias: &str, db: &FrecentDB, now: u64) -> Op
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frecent::FrecentDB;
     use std::env;
     use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn setup_test_dirs(subdirs: &[&str]) -> String {
         let mut temp = env::temp_dir();
         temp.push("zsm_test");
         temp.push(format!(
             "{:x}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
         ));
-
         fs::create_dir_all(&temp).unwrap();
         for dir in subdirs {
             fs::create_dir(temp.join(dir)).unwrap();
@@ -111,10 +112,19 @@ mod tests {
         temp.to_string_lossy().into_owned()
     }
 
+    fn now_secs() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+    }
+
     #[test]
     fn test_find_exact_match() {
         let base = setup_test_dirs(&["my_project", "other_project"]);
-        let result = find_project(&base, "my_project");
+        let db = FrecentDB::new(); // empty DB
+        let now = now_secs();
+        let result = find_project(&base, "my_project", &db, now);
         assert!(result.is_some());
         assert!(result.unwrap().ends_with("my_project"));
         fs::remove_dir_all(base).unwrap();
@@ -123,7 +133,9 @@ mod tests {
     #[test]
     fn test_case_insensitive_match() {
         let base = setup_test_dirs(&["MyProject"]);
-        let result = find_project(&base, "myproject");
+        let db = FrecentDB::new();
+        let now = now_secs();
+        let result = find_project(&base, "myproject", &db, now);
         assert!(result.is_some());
         fs::remove_dir_all(base).unwrap();
     }
@@ -131,7 +143,9 @@ mod tests {
     #[test]
     fn test_no_match() {
         let base = setup_test_dirs(&["project"]);
-        let result = find_project(&base, "nonexistent");
+        let db = FrecentDB::new();
+        let now = now_secs();
+        let result = find_project(&base, "nonexistent", &db, now);
         assert!(result.is_none());
         fs::remove_dir_all(base).unwrap();
     }
@@ -139,14 +153,19 @@ mod tests {
     #[test]
     fn test_skip_hidden() {
         let base = setup_test_dirs(&[".hidden_project", "visible"]);
-        let result = find_project(&base, "hidden");
-        assert!(result.is_none());
+        let db = FrecentDB::new();
+        let now = now_secs();
+        let result = find_project(&base, "hidden", &db, now);
+        assert!(result.is_none()); // .hidden_project ignored
         fs::remove_dir_all(base).unwrap();
     }
+
     #[test]
     fn test_fuzzy_ordering() {
         let base = setup_test_dirs(&["dotfiles-bspwm", "bspwm-dotfiles", "database-migration"]);
-        let result = find_project(&base, "dbm");
+        let db = FrecentDB::new();
+        let now = now_secs();
+        let result = find_project(&base, "dbm", &db, now);
         assert!(result.is_some());
         let path = result.unwrap();
         assert!(path.contains("dotfiles-bspwm") || path.contains("database-migration"));
@@ -157,7 +176,9 @@ mod tests {
     #[test]
     fn test_fuzzy_no_match_wrong_order() {
         let base = setup_test_dirs(&["abcdef"]);
-        let result = find_project(&base, "fa");
+        let db = FrecentDB::new();
+        let now = now_secs();
+        let result = find_project(&base, "fa", &db, now);
         assert!(result.is_none());
         fs::remove_dir_all(base).unwrap();
     }
