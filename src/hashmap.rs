@@ -21,17 +21,25 @@ impl<K: Eq + Hash, V> HashMap<K, V> {
         hasher.finish()
     }
 
-    fn find_bucket(&self, key: &K) -> Option<(usize, bool)> {
+    fn find_bucket_borrowed<Q>(&self, key: &Q) -> Option<(usize, bool)>
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         if self.buckets.is_empty() {
             return None;
         }
-        let start_idx = (self.hash(key) as usize) % self.buckets.len();
+        let mut hasher = std::hash::DefaultHasher::new();
+        key.hash(&mut hasher);
+        let hash_val = hasher.finish();
+        let start_idx = (hash_val as usize) % self.buckets.len();
+
         let mut idx = start_idx;
         let mut dist = 0;
         loop {
             match &self.buckets[idx] {
                 Some(((k, _), d)) => {
-                    if k == key {
+                    if k.borrow() == key {
                         return Some((idx, true));
                     }
                     if *d < dist {
@@ -48,6 +56,10 @@ impl<K: Eq + Hash, V> HashMap<K, V> {
                 return None;
             }
         }
+    }
+
+    fn find_bucket(&self, key: &K) -> Option<(usize, bool)> {
+        self.find_bucket_borrowed(key)
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
@@ -100,8 +112,12 @@ impl<K: Eq + Hash, V> HashMap<K, V> {
         }
     }
 
-    pub fn get(&self, key: &K) -> Option<&V> {
-        if let Some((idx, true)) = self.find_bucket(key) {
+    pub fn get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        if let Some((idx, true)) = self.find_bucket_borrowed(key) {
             if let Some(((_, v), _)) = &self.buckets[idx] {
                 return Some(v);
             }
@@ -109,13 +125,23 @@ impl<K: Eq + Hash, V> HashMap<K, V> {
         None
     }
 
-    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        if let Some((idx, true)) = self.find_bucket(key) {
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        if let Some((idx, true)) = self.find_bucket_borrowed(key) {
             if let Some(((_, v), _)) = &mut self.buckets[idx] {
                 return Some(v);
             }
         }
         None
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+        self.buckets
+            .iter()
+            .filter_map(|opt| opt.as_ref().map(|((k, v), _)| (k, v)))
     }
 }
 
@@ -141,7 +167,6 @@ mod tests {
     #[test]
     fn collision_and_robin_hood() {
         let mut map = HashMap::new(4);
-        // Insert many keys to force collisions and swaps
         for i in 0..20 {
             map.insert(format!("key{}", i), i);
         }

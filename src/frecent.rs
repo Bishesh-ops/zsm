@@ -1,16 +1,17 @@
+use crate::hashmap::HashMap as MyHashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::HashMap as StdHashMap;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FrecentEntry {
     pub frequency: u32,
     pub last_visited: u64,
 }
 
 pub struct FrecentDB {
-    entries: HashMap<String, FrecentEntry>,
+    entries: MyHashMap<String, FrecentEntry>,
 }
 
 impl FrecentDB {
@@ -25,29 +26,41 @@ impl FrecentDB {
     pub fn load() -> Self {
         let path = Self::file_path();
         if let Ok(data) = fs::read_to_string(&path) {
-            if let Ok(entries) = serde_json::from_str::<HashMap<String, FrecentEntry>>(&data) {
-                return FrecentDB { entries };
+            if let Ok(std_map) = serde_json::from_str::<StdHashMap<String, FrecentEntry>>(&data) {
+                // Convert to our custom HashMap
+                let mut map = MyHashMap::new(std_map.len().max(8));
+                for (k, v) in std_map {
+                    map.insert(k, v);
+                }
+                return FrecentDB { entries: map };
             }
         }
         FrecentDB {
-            entries: HashMap::new(),
+            entries: MyHashMap::new(8),
         }
     }
 
     pub fn save(&self) {
         let path = Self::file_path();
-        if let Ok(json) = serde_json::to_string(&self.entries) {
+        let std_map: StdHashMap<&String, &FrecentEntry> = self.entries.iter().collect();
+        if let Ok(json) = serde_json::to_string(&std_map) {
             fs::write(path, json).ok();
         }
     }
 
     pub fn record_visit(&mut self, path: &str, now_unix_secs: u64) {
-        let entry = self.entries.entry(path.to_owned()).or_insert(FrecentEntry {
-            frequency: 0,
-            last_visited: now_unix_secs,
-        });
-        entry.frequency += 1;
-        entry.last_visited = now_unix_secs;
+        if let Some(entry) = self.entries.get_mut(path) {
+            entry.frequency += 1;
+            entry.last_visited = now_unix_secs;
+        } else {
+            self.entries.insert(
+                path.to_owned(),
+                FrecentEntry {
+                    frequency: 1,
+                    last_visited: now_unix_secs,
+                },
+            );
+        }
     }
 
     pub fn frecency_score(&self, path: &str, now_unix_secs: u64) -> u32 {
@@ -64,7 +77,7 @@ impl FrecentDB {
     #[cfg(test)]
     pub fn new() -> Self {
         FrecentDB {
-            entries: HashMap::new(),
+            entries: MyHashMap::new(8),
         }
     }
 }
