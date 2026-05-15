@@ -4,3 +4,8 @@ zig-out/
 build/
 *.o
 *.so
+
+
+# Added by cargo
+
+/target
