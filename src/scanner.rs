@@ -1,3 +1,4 @@
+use crate::frecent::FrecentDB;
 use std::fs;
 use std::path::Path;
 
@@ -52,10 +53,10 @@ fn fuzzy_score(query: &str, candidate: &str) -> Option<u32> {
         None
     }
 }
-pub fn find_project(base_dir: &str, alias: &str) -> Option<String> {
+pub fn find_project(base_dir: &str, alias: &str, db: &FrecentDB, now: u64) -> Option<String> {
     let dir_iter = fs::read_dir(base_dir).ok()?;
 
-    let mut best_score = 0;
+    let mut best_score: i64 = -1;
     let mut best_path: Option<String> = None;
 
     for entry in dir_iter {
@@ -70,11 +71,16 @@ pub fn find_project(base_dir: &str, alias: &str) -> Option<String> {
         if name_str.starts_with('.') {
             continue;
         }
-        if let Some(score) = fuzzy_score(alias, name_str) {
-            if score > best_score {
-                best_score = score;
-                let full_path = Path::new(base_dir).join(name_str);
-                best_path = Some(full_path.to_string_lossy().into_owned());
+
+        if let Some(fuzzy) = fuzzy_score(alias, name_str) {
+            let full_path = Path::new(base_dir).join(name_str);
+            let full_path_str = full_path.to_string_lossy().into_owned();
+            let frecency = db.frecency_score(&full_path_str, now);
+            let total = fuzzy as i64 + frecency as i64;
+
+            if total > best_score {
+                best_score = total;
+                best_path = Some(full_path_str);
             }
         }
     }

@@ -1,6 +1,8 @@
 use std::env;
 use std::process;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+mod frecent;
 mod scanner;
 
 fn main() {
@@ -25,8 +27,17 @@ fn main() {
 
     let base = env::var("ZSM_BASE").unwrap_or_else(|_| "/home/bisheshshrestha/Dev".to_string());
 
-    match scanner::find_project(&base, target_alias) {
-        Some(path) => println!("{}", path),
+    let mut db = frecent::FrecentDB::new();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    match scanner::find_project(&base, target_alias, &db, now) {
+        Some(path) => {
+            db.record_visit(&path, now);
+            println!("{}", path);
+        }
         None => {
             eprintln!(
                 "Error: No project matching '{}' found in '{}'.",
